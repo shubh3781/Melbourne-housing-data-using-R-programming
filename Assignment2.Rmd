@@ -1,0 +1,312 @@
+---
+title: "Assignment 2"
+author: "Shubhkumar Bharatkumar patel(3077432)"
+date: "30/11/2021"
+output: pdf_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+housing.dataset <- read.csv("C:/Users/shubh/Downloads/melbourne_housing_data.csv")
+str(housing.dataset)
+options(scipen = 999)
+library(car)
+library(nortest)
+library(HH)
+library(psych)
+library(corrgram)
+library(PerformanceAnalytics)
+library(ggplot2)
+library(gridExtra)
+library(caTools)
+library(carat)
+library(modeldata)
+library(C50)
+library(neuralnet)
+library(class)
+
+```
+
+```{r Hyphothesis,echo=TRUE}
+
+#Converting Type Column from Chr to int.
+
+housing.dataset$Type[housing.dataset$Type == 'h'] <- 1
+housing.dataset$Type[housing.dataset$Type == 't'] <- 2
+housing.dataset$Type[housing.dataset$Type == 'u'] <- 3
+housing.dataset$Type <- as.integer(housing.dataset$Type)
+
+housing.dataset$Regionname[housing.dataset$Regionname == 'Eastern Metropolitan'] <- 1
+housing.dataset$Regionname[housing.dataset$Regionname == 'Eastern Victoria'] <- 2
+housing.dataset$Regionname[housing.dataset$Regionname == 'Northern Metropolitan'] <- 3
+housing.dataset$Regionname[housing.dataset$Regionname == 'Northern Victoria'] <- 4
+housing.dataset$Regionname[housing.dataset$Regionname == 'South-Eastern Metropolitan'] <- 5
+housing.dataset$Regionname[housing.dataset$Regionname == 'Southern Metropolitan'] <- 6
+housing.dataset$Regionname[housing.dataset$Regionname == 'Western Metropolitan'] <- 7
+housing.dataset$Regionname[housing.dataset$Regionname == 'Western Victoria'] <- 8
+housing.dataset$Regionname <- as.integer(housing.dataset$Regionname)
+
+##There’s a positive correlation with Regionname and Rooms with Price,Regionname and Propertycount with Type, Postcode and Rooms with Distance
+## while it is showing negative correlation with Type and Rooms
+corPlot(housing.dataset[c(6,4,5,10,11,12,13)], cex = 1)
+
+#plotting posiive Correlative pairs
+p1=ggplot(housing.dataset, aes(x = Price, y = Rooms)) +
+  geom_jitter() +  geom_smooth(formula=y~x,method = "lm", se = FALSE)+labs(title="Scatter plot of Rooms and Price", x="Price",y="Rooms")
+
+p2=ggplot(housing.dataset, aes(x =Distance , y =  Rooms)) +
+  geom_jitter() +  geom_smooth(formula=y~x,method = "lm", se = FALSE)+labs(title="Scatter plot of Distance and Rooms", x="Distance",y="Rooms")
+
+p3=ggplot(housing.dataset, aes(x =Postcode , y =  Distance)) +
+  geom_jitter() +  geom_smooth(formula=y~x,method = "lm", se = FALSE)+labs(title="Scatter plot of Postcode and Distance", x="Postcode",y="Distance")
+
+p4=ggplot(housing.dataset, aes(x =Type , y =  Regionname)) +
+  geom_jitter() +  geom_smooth(formula=y~x,method = "lm", se = FALSE)+labs(title="Scatter plot of Type and Regionname", x="Type",y="Regionname")
+
+p5=ggplot(housing.dataset, aes(x =Type , y =  Propertycount)) +
+  geom_jitter() +  geom_smooth(formula=y~x,method = "lm", se = FALSE)+labs(title="Scatter plot of Type and Propertcount", x="Type",y="Propertycount")
+
+p6=ggplot(housing.dataset, aes(x =Postcode , y =  Rooms)) +
+  geom_jitter() +  geom_smooth(formula=y~x,method = "lm", se = FALSE)+labs(title="Scatter plot of Postcode and Rooms", x="Postcode",y="Rooms")
+
+p7=ggplot(housing.dataset, aes(x =Price , y =Regionname )) +
+  geom_jitter() +  geom_smooth(formula=y~x,method = "lm", se = FALSE)+labs(title="Scatter plot of Regionname and Price", x="Price",y="Regionname")
+
+grid.arrange(p1,p2,p3,p4,p5,p6,p7,nrow=4)
+
+#Normalizing Data
+
+norm1 <- function(x) {(x - min(x)) / (max(x) - min(x))}
+
+hdd_norm <- as.data.frame(lapply(housing.dataset[,c(4,6,11)], norm1))
+head(hdd_norm)
+
+
+##HYPHOTHESIS 1
+
+RPC <- aov(Rooms~Price, data = hdd_norm)
+RPC
+summary(RPC)
+
+#Normality Plot 
+qqnorm(residuals(RPC));qqline(residuals(RPC), col = 2)
+
+#Homogeneity of Variance Test
+hov1<-hov(hdd_norm$Rooms ~ hdd_norm$Price)
+hov1
+hovplot1<-hovPlot(hdd_norm$Rooms ~ hdd_norm$Price)
+hovplot1
+
+
+
+##HYPOTHESIS 2
+
+
+DRD <- aov(Regionname~Price, data = hdd_norm)
+DRD
+summary(DRD)
+
+#Normality Plot 
+qqnorm(residuals(DRD));qqline(residuals(DRD), col = 2)
+
+#Homogeneity of Variance Test
+hov2<-hov(hdd_norm$Regionname ~ hdd_norm$Price)
+hov2
+hovplot2<-hovPlot(hdd_norm$Regionname ~ hdd_norm$Price)
+hovplot2
+
+
+```
+```{r Linear,echo=TRUE}
+
+#split data into train and test data 75/25.
+
+housing.dataset0<- housing.dataset <- read.csv("C:/Users/shubh/Downloads/melbourne_housing_data.csv")
+
+housing.dataset0$Type[housing.dataset0$Type == 'h'] <- 1
+housing.dataset0$Type[housing.dataset0$Type == 't'] <- 2
+housing.dataset0$Type[housing.dataset0$Type == 'u'] <- 3
+housing.dataset0$Type <- as.integer(housing.dataset0$Type)
+
+housing.dataset0$Regionname[housing.dataset0$Regionname == 'Eastern Metropolitan'] <- 1
+housing.dataset0$Regionname[housing.dataset0$Regionname == 'Eastern Victoria'] <- 2
+housing.dataset0$Regionname[housing.dataset0$Regionname == 'Northern Metropolitan'] <- 3
+housing.dataset0$Regionname[housing.dataset0$Regionname == 'Northern Victoria'] <- 4
+housing.dataset0$Regionname[housing.dataset0$Regionname == 'South-Eastern Metropolitan'] <- 5
+housing.dataset0$Regionname[housing.dataset0$Regionname == 'Southern Metropolitan'] <- 6
+housing.dataset0$Regionname[housing.dataset0$Regionname == 'Western Metropolitan'] <- 7
+housing.dataset0$Regionname[housing.dataset0$Regionname == 'Western Victoria'] <- 8
+housing.dataset0$Regionname <- as.integer(housing.dataset0$Regionname)
+
+
+set.seed(101) 
+sample = sample.split(housing.dataset0, SplitRatio = .75)
+train.data = subset(housing.dataset0, sample == TRUE)
+test.data  = subset(housing.dataset0, sample == FALSE)
+
+#Linear regression using multiple Variable to predict house price
+Price.lm<-lm(Type ~ Price, data = housing.dataset0)
+summary(Price.lm)
+
+#plotting
+par(mfrow=c(2,2))
+plot(Price.lm)
+par(mfrow=c(1,1))
+
+
+#Prediction of Price
+p123<-predict(Price.lm,newdata = train.data)
+lmp<-sqrt(mean((p123-train.data$Price)^2))
+lmp
+
+
+#RMSE Correlation Predection of Test data
+#Reporting R Squared
+TRp<- lm(Rooms ~ Price, data = train.data)
+summary(TRp)$adj.r.squared
+
+pr<- lm(Regionname ~ Price, data = train.data)
+summary(pr)$adj.r.squared
+
+#Reporting Prediction
+Predict1<-predict(TRp, newdata = test.data)
+RMSE1<-sqrt(mean((Predict1-test.data$Rooms)^2))
+RMSE1
+
+Predict2<-predict(pr, newdata = test.data)
+RMSE2<-sqrt(mean((Predict2-test.data$Regionname)^2))
+RMSE2
+
+#creating Table 
+tabrmse<-table(RMSE1,RMSE2)
+
+#Calculating Accuracy
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+ accuracy(tabrmse)
+ 
+
+#Normalizing Data
+ 
+norm2 <- function(x) {(x - min(x)) / (max(x) - min(x))}
+
+hdd_norm2 <- as.data.frame(lapply(housing.dataset0[,c(5,6)], norm2))
+head(hdd_norm2)
+
+#Creating a simple regression model
+
+Price.lm2<-lm(Type ~ Price, data = hdd_norm2)
+summary(Price.lm2)
+
+#plotting
+par(mfrow=c(2,2))
+plot(Price.lm2)
+par(mfrow=c(1,1))
+
+PND <- predict(Price.lm2, newdata = housing.dataset0)
+summary(PND)
+
+```
+```{r KNN, echo=TRUE}
+
+HD1<-housing.dataset <- read.csv("C:/Users/shubh/Downloads/melbourne_housing_data.csv")
+
+
+
+
+#spliting data into 80/20.
+NHD <- sample(1:nrow(HD1), 0.8 * nrow(HD1))
+
+#normalizing data
+nor <-function(x) { (x -min(x))/(max(x)-min(x))   }
+
+HD_norm <- as.data.frame(lapply(HD1[,c(4,6)], nor))
+head(HD_norm)
+
+
+HD_train <- HD_norm[NHD,]
+
+HD_test <- HD_norm[-NHD,]
+
+HD_target <- as.factor(HD1[NHD,5])
+
+HDtest_target <- as.factor(HD1[-NHD,5])
+
+##run knn function
+HDKNN <- knn(HD_train,HD_test,cl=HD_target,k=16)
+
+#finding accuracy
+tabHD<- table(HDKNN,HDtest_target)
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+accuracy(tabHD)
+
+plot(HDKNN)
+
+
+
+ 
+```
+```{r C 5.0, echo=TRUE}
+# C 5.0 Classification Model
+ 
+HD2<-housing.dataset <- read.csv("C:/Users/shubh/Downloads/melbourne_housing_data.csv")
+ 
+ ctr <- c("Price","Rooms")
+ str(HD2[, c(ctr, "Type")])
+ 
+
+set.seed(1001) 
+sample = sample.split(HD2, SplitRatio = .80)
+train.HD2 = subset(HD2, sample == TRUE)
+test.HD2  = subset(HD2, sample == FALSE)
+
+
+train.HD2$Type<-as.factor(train.HD2$Type)
+str(train.HD2$Type)
+
+
+hdc5.0 <- C5.0(x = train.HD2[ctr], y = train.HD2$Type)
+hdc5.0
+summary(hdc5.0)
+
+plot(hdc5.0)
+
+
+#Showing Price Range With Rooms And Type Data
+```
+
+
+```{r ANN, echo=TRUE}
+#Ann Classification
+ 
+HD3<-housing.dataset <- read.csv("C:/Users/shubh/Downloads/melbourne_housing_data.csv")
+
+
+
+set.seed(1001)
+sample = sample.split(HD3, SplitRatio = .80)
+train.HD3 = subset(HD3, sample == TRUE)
+test.HD3  = subset(HD3, sample == FALSE)
+
+
+train.HD3$Type<-as.factor(train.HD3$Type)
+str(train.HD3$Type)
+train.HD3$Rooms<-as.factor(train.HD3$Rooms)
+str(train.HD2$Rooms)
+train.HD3$Price<-as.factor(train.HD3$Price)
+str(train.HD3$Price)
+
+
+#HD3N <- model.matrix(~Price+Rooms+Type+Regionname, data = HD3 )
+
+Ann.HD3=neuralnet(Type~Rooms+Price,data=HD3, hidden=5,threshold = 0.01,
+                linear.output = FALSE)
+summary(Ann.HD3)
+
+plot(Ann.HD3 ,rep = 'best')
+
+
+```
+## Compairing ANN Performance C 5.0 and KNN Showing accurate And Valid prediction on price so C 5.0 Performing Well.#####
+## While Knn gave us approx 81% Accuracy.
+
+
